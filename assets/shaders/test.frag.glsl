@@ -1,9 +1,11 @@
+
 #version 330 core
 
-layout(location = 0) out vec3 outColor;
+layout(location = 0) out vec4 outColor;
 
-in vec3 oColor;
+in vec2 texCoord;
+uniform sampler2D tex;
 
 void main() {
-    outColor = oColor;
+    outColor = texture(tex, texCoord);
 } 
