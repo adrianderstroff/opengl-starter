@@ -9,7 +9,17 @@
 #include <GLFW/glfw3.h>
 #include <GLM/glm.hpp>
 
-#include <xmmintrin.h>
+
+#include <omp.h>
+#include <immintrin.h>
+
+#include <chrono>
+
+constexpr unsigned int ITERATIONS = 256;
+constexpr unsigned int WIDTH = 1200;
+constexpr unsigned int HEIGHT = 1200;
+constexpr double XWIDTH = 2.5;
+constexpr double YWIDTH = 2.5;
 
 typedef struct {
 	double r;       // a fraction between 0 and 1
@@ -84,57 +94,58 @@ rgb hsv2rgb(hsv in)
 }
 
 void
-mandel_sse2(float* pixels, unsigned int width, unsigned int height, float xstart, float xend, float ystart, float yend, unsigned int iterations)
+mandel_sse2(float* pixels, unsigned int width, unsigned int height, double xstart, double xend, double ystart, double yend, unsigned int iterations)
 {
-	__m128 xmin = _mm_set_ps1(xstart);
-	__m128 ymin = _mm_set_ps1(ystart);
-	__m128 xscale = _mm_set_ps1((xend - xstart) / width);
-	__m128 yscale = _mm_set_ps1((yend - ystart) / height);
-	__m128 threshold = _mm_set_ps1(4);
-	__m128 one = _mm_set_ps1(1);
-	__m128 iter_scale = _mm_set_ps1(1.0f / iterations);
+	__m256d xmin = _mm256_set1_pd(xstart);
+	__m256d ymin = _mm256_set1_pd(ystart);
+	__m256d xscale = _mm256_set1_pd((xend - xstart) / width);
+	__m256d yscale = _mm256_set1_pd((yend - ystart) / height);
+	__m256d threshold = _mm256_set1_pd(4);
+	__m256d one = _mm256_set1_pd(1);
+	__m256d iter_scale = _mm256_set1_pd(1.0 / iterations);
 
-	float res[4];
-	hsv color;
-	color.s = 1.0f;
-	for (unsigned int y = 0; y < height; y++) {
+	#pragma omp parallel for
+	for (int y = 0; y < height; y++) {
+		double res[4];
+		hsv color;
+		color.s = 1.0f;
 		for (unsigned int x = 0; x < width; x += 4) {
-			__m128 mx = _mm_set_ps(x + 3, x + 2, x + 1, x + 0);
-			__m128 my = _mm_set_ps1(y);
-			__m128 cr = _mm_add_ps(_mm_mul_ps(mx, xscale), xmin);
-			__m128 ci = _mm_add_ps(_mm_mul_ps(my, yscale), ymin);
-			__m128 zr = cr;
-			__m128 zi = ci;
+			__m256d mx = _mm256_set_pd(x + 3, x + 2, x + 1, x + 0);
+			__m256d my = _mm256_set1_pd(y);
+			__m256d cr = _mm256_add_pd(_mm256_mul_pd(mx, xscale), xmin);
+			__m256d ci = _mm256_add_pd(_mm256_mul_pd(my, yscale), ymin);
+			__m256d zr = cr;
+			__m256d zi = ci;
 			unsigned int k = 1;
-			__m128 mk = _mm_set_ps1(k);
+			__m256d mk = _mm256_set1_pd(k);
 			while (++k < iterations) {
 				/* Compute z1 from z0 */
-				__m128 zr2 = _mm_mul_ps(zr, zr);
-				__m128 zi2 = _mm_mul_ps(zi, zi);
-				__m128 zrzi = _mm_mul_ps(zr, zi);
+				__m256d zr2 = _mm256_mul_pd(zr, zr);
+				__m256d zi2 = _mm256_mul_pd(zi, zi);
+				__m256d zrzi = _mm256_mul_pd(zr, zi);
 				/* zr1 = zr0 * zr0 - zi0 * zi0 + cr */
 				/* zi1 = zr0 * zi0 + zr0 * zi0 + ci */
-				zr = _mm_add_ps(_mm_sub_ps(zr2, zi2), cr);
-				zi = _mm_add_ps(_mm_add_ps(zrzi, zrzi), ci);
+				zr = _mm256_add_pd(_mm256_sub_pd(zr2, zi2), cr);
+				zi = _mm256_add_pd(_mm256_add_pd(zrzi, zrzi), ci);
 
 				/* Increment k */
-				zr2 = _mm_mul_ps(zr, zr);
-				zi2 = _mm_mul_ps(zi, zi);
-				__m128 mag2 = _mm_add_ps(zr2, zi2);
-				__m128 mask = _mm_cmplt_ps(mag2, threshold);
-				mk = _mm_add_ps(_mm_and_ps(mask, one), mk);
+				zr2 = _mm256_mul_pd(zr, zr);
+				zi2 = _mm256_mul_pd(zi, zi);
+				__m256d mag2 = _mm256_add_pd(zr2, zi2);
+				__m256d mask = _mm256_cmp_pd(mag2, threshold, _CMP_LT_OQ);
+				mk = _mm256_add_pd(_mm256_and_pd(mask, one), mk);
 
 				/* Early bailout? */
-				if (_mm_movemask_ps(mask) == 0)
+				if (_mm256_movemask_pd(mask) == 0)
 					break;
 			}
-			mk = _mm_add_ps(mk, one);
-			mk = _mm_mul_ps(mk, iter_scale);
+			mk = _mm256_add_pd(mk, one);
+			mk = _mm256_mul_pd(mk, iter_scale);
 
-			_mm_store_ps(res, mk);
+			_mm256_store_pd(res, mk);
 
 			for (int i = 0; i < 4; i++) {
-				float mk_fpu = res[i];
+				double mk_fpu = res[i];
 				color.h = mk_fpu * 360.0f;
 				color.v = mk_fpu >= 1.0f? 0.0f : 1.0f;
 
@@ -157,18 +168,18 @@ static void errorCallback(int error, const char* description) {
 	fputs(description, stderr);
 }
 
-float zoom = 1.0f;
+double zoom = 1.0f;
 
 static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
 	// close window when ESC has been pressed
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, GL_TRUE);
-	if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
-		zoom *= 2.0f;
-	}
-	if (key == GLFW_KEY_B && action == GLFW_PRESS) {
-		zoom /= 2.0f;
-	}
+	//if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
+	//	zoom *= 2.0f;
+	//}
+	//if (key == GLFW_KEY_B && action == GLFW_PRESS) {
+	//	zoom /= 2.0f;
+	//}
 
 }
 bool mouseLeftPressed = false;
@@ -185,7 +196,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
 
 
 std::pair<int, int> convertMouseToCoordinateSystem(double xpos, double ypos) {
-	auto p =  std::make_pair((int)xpos, (int)(480 - ypos));
+	auto p =  std::make_pair((int)xpos, (int)(HEIGHT - ypos));
 	return p;
 }
 
@@ -362,13 +373,13 @@ GLuint createShaderProgram(std::string vertexShaderPath, std::string fragmentSha
 	return shaderProgram;
 }
 
-void updateMandel(float* pixels, float centerX, float centerY, float mWidth, float mHeight, unsigned int width, unsigned int height, unsigned int iterations) {
+void updateMandel(float* pixels, double centerX, double centerY, double mWidth, double mHeight, unsigned int width, unsigned int height, unsigned int iterations) {
 
-	float xStart = centerX - (mWidth / 2.0f);
-	float xEnd = centerX + (mWidth / 2.0f);
+	double xStart = centerX - (mWidth / 2.0);
+	double xEnd = centerX + (mWidth / 2.0);
 
-	float yStart = centerY - (mHeight / 2.0f);
-	float yEnd = centerY + (mHeight / 2.0f);
+	double yStart = centerY - (mHeight / 2.0);
+	double yEnd = centerY + (mHeight / 2.0);
 
 	mandel_sse2(pixels, width, height, xStart, xEnd, yStart, yEnd, iterations);
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_FLOAT, pixels);
@@ -399,7 +410,7 @@ void cleanup(GLFWwindow* window, GLuint& shaderProgram, GLuint& vao) {
 float* generateTextureBuffer(unsigned int width, unsigned int height) {
 	float* buffer = new float[width * height * 4];
 
-	mandel_sse2(buffer, width, height, -2.0f, 0.5f, -1.25f, 1.25f, 60);
+	mandel_sse2(buffer, width, height, -2.0, 0.5, -1.25, 1.25, ITERATIONS);
 	//for (unsigned int y = 0; y < height; y++) {
 	//	for (unsigned int x = 0; x < width; x ++) {
 	//		unsigned int idx = y * width * 4 + (x * 4);
@@ -426,12 +437,23 @@ float* generateTextureBuffer(unsigned int width, unsigned int height) {
 }
 //_______________________________________________________MAIN________________________________________________________//
 
+void updateZoom(GLFWwindow* window, double deltaSeconds) {
+	double zoomFactor = 1 + 1.5 * deltaSeconds;
+	if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+		zoom *= zoomFactor;
+	}
 
-float lastCenterX = -0.75f;
-float lastCenterY = 0.0f;
-float clickedMousePosX = 0.0f;
-float clickedMousePosY = 0.0f;
-std::pair<float, float> getCenter(bool lastMousePressedState, float currCenterX, float currCenterY, float xWidth, float yWidth) {
+	if (glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS) {
+		zoom /= zoomFactor;
+	}
+}
+
+
+double lastCenterX = -0.75f;
+double lastCenterY = 0.0f;
+double clickedMousePosX = 0.0f;
+double clickedMousePosY = 0.0f;
+std::pair<double, double> getCenter(bool lastMousePressedState, double currCenterX, double currCenterY, double xWidth, double yWidth) {
 	if (!lastMousePressedState && mouseLeftPressed) {
 		lastCenterX = currCenterX;
 		lastCenterY = currCenterY;
@@ -439,8 +461,8 @@ std::pair<float, float> getCenter(bool lastMousePressedState, float currCenterX,
 		clickedMousePosY = mouseCoordy;
 		return std::make_pair(currCenterX, currCenterY);
 	} else if (lastMousePressedState && mouseLeftPressed) {
-		float mouseTranslationX = (mouseCoordx - clickedMousePosX) / 640 * xWidth;
-		float mouseTranslationY = (mouseCoordy - clickedMousePosY) / 480 * yWidth;
+		double mouseTranslationX = (mouseCoordx - clickedMousePosX) / WIDTH * xWidth;
+		double mouseTranslationY = (mouseCoordy - clickedMousePosY) / HEIGHT * yWidth;
 		return std::make_pair(lastCenterX - mouseTranslationX, lastCenterY - mouseTranslationY);
 	}
 	return std::make_pair(currCenterX, currCenterY);
@@ -448,9 +470,9 @@ std::pair<float, float> getCenter(bool lastMousePressedState, float currCenterX,
 
 int main(void) {
 	// create a window with the specified width, height and title and initialize OpenGL
-	unsigned int width = 640;
-	unsigned int height = 480;
-	GLFWwindow* window = initialize(width, height, "OpenGL Starter Project");
+	unsigned int width = WIDTH;
+	unsigned int height = HEIGHT;
+	GLFWwindow* window = initialize(width, height, "Mandelbrot Set Viewer");
 	GLuint shaderProgram = createShaderProgram(
 		ASSETS_PATH"/shaders/test.vert.glsl",
 		ASSETS_PATH"/shaders/test.frag.glsl");
@@ -459,34 +481,45 @@ int main(void) {
 	GLuint textureId = createTexture(width, height, pixels);
 	GLuint vao = createBuffers();
 
-	float currCenterX = -0.75f;
-	float currCenterY = 0.0f;
-	float xWidth = 2.5f;
-	float yWidth = 2.5f;
+	double currCenterX = -0.75;
+	double currCenterY = 0.0;
+	double xWidth = 2.5;
+	double yWidth = 2.5;
 	bool currMousePressedState = false;
+	
+	auto lastFrameStart = std::chrono::high_resolution_clock::now();
+	auto currentFrameStart = std::chrono::high_resolution_clock::now();
 
 	// loop until the user presses ESC or the window is closed programatically
 	while (!glfwWindowShouldClose(window)) {
+
+		currentFrameStart = std::chrono::high_resolution_clock::now();
+		auto deltaSeconds = (currentFrameStart - lastFrameStart).count() / 1000000000.0;
+		//std::cout << deltaSeconds << "\n";
+
 		// clear the back buffer with the specified color and the depth buffer with 1
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		std::pair<float, float> center = getCenter(currMousePressedState, currCenterX, currCenterY, xWidth, yWidth);
+		std::pair<double, double> center = getCenter(currMousePressedState, currCenterX, currCenterY, xWidth, yWidth);
 		currCenterX = center.first;
 		currCenterY = center.second;
 		currMousePressedState = mouseLeftPressed;
 		xWidth = 2.5f / zoom;
 		yWidth = 2.5f / zoom;
-		updateMandel(pixels, center.first, center.second, xWidth, yWidth, width, height, 60);
+		updateMandel(pixels, center.first, center.second, xWidth, yWidth, width, height, ITERATIONS);
 		// render to back buffer
 		render(shaderProgram, vao, textureId);
 
 		// switch front and back buffers
 		glfwSwapBuffers(window);
 		glfwPollEvents();
+		updateZoom(window, deltaSeconds);
 
 		if (mouseLeftPressed) {
 			drawPixels(mouseCoordx, mouseCoordy, textureId);
 		}
+
+		lastFrameStart = currentFrameStart;
 	}
 
 	// clean up all created objects
