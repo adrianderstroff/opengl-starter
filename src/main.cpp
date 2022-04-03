@@ -157,11 +157,18 @@ static void errorCallback(int error, const char* description) {
 	fputs(description, stderr);
 }
 
-float zoom = 1.0;
+float zoom = 1.0f;
+
 static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
 	// close window when ESC has been pressed
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, GL_TRUE);
+	if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
+		zoom *= 2.0f;
+	}
+	if (key == GLFW_KEY_B && action == GLFW_PRESS) {
+		zoom /= 2.0f;
+	}
 
 }
 bool mouseLeftPressed = false;
@@ -174,6 +181,8 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
 	}
 
 }
+
+
 
 std::pair<int, int> convertMouseToCoordinateSystem(double xpos, double ypos) {
 	auto p =  std::make_pair((int)xpos, (int)(480 - ypos));
@@ -353,14 +362,15 @@ GLuint createShaderProgram(std::string vertexShaderPath, std::string fragmentSha
 	return shaderProgram;
 }
 
-void updateMandel(float* pixels, unsigned int width, unsigned int height) {
-	if (mouseLeftPressed) {
-		zoom *= 1.05;
-	}
-	else {
-		zoom /= 1.05;
-	}
-	mandel_sse2(pixels, width, height, -0.75 - ((1 / zoom) * 1.25), -0.75 + (1 / zoom) * 1.25, -1.25 * (1 / zoom), 1.25 * (1 / zoom), 90);
+void updateMandel(float* pixels, float centerX, float centerY, float mWidth, float mHeight, unsigned int width, unsigned int height, unsigned int iterations) {
+
+	float xStart = centerX - (mWidth / 2.0f);
+	float xEnd = centerX + (mWidth / 2.0f);
+
+	float yStart = centerY - (mHeight / 2.0f);
+	float yEnd = centerY + (mHeight / 2.0f);
+
+	mandel_sse2(pixels, width, height, xStart, xEnd, yStart, yEnd, iterations);
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_FLOAT, pixels);
 }
 
@@ -389,7 +399,7 @@ void cleanup(GLFWwindow* window, GLuint& shaderProgram, GLuint& vao) {
 float* generateTextureBuffer(unsigned int width, unsigned int height) {
 	float* buffer = new float[width * height * 4];
 
-	mandel_sse2(buffer, width, height, -2.0f, 0.5f, -1.25f, 1.25f, 90);
+	mandel_sse2(buffer, width, height, -2.0f, 0.5f, -1.25f, 1.25f, 60);
 	//for (unsigned int y = 0; y < height; y++) {
 	//	for (unsigned int x = 0; x < width; x ++) {
 	//		unsigned int idx = y * width * 4 + (x * 4);
@@ -416,6 +426,26 @@ float* generateTextureBuffer(unsigned int width, unsigned int height) {
 }
 //_______________________________________________________MAIN________________________________________________________//
 
+
+float lastCenterX = -0.75f;
+float lastCenterY = 0.0f;
+float clickedMousePosX = 0.0f;
+float clickedMousePosY = 0.0f;
+std::pair<float, float> getCenter(bool lastMousePressedState, float currCenterX, float currCenterY, float xWidth, float yWidth) {
+	if (!lastMousePressedState && mouseLeftPressed) {
+		lastCenterX = currCenterX;
+		lastCenterY = currCenterY;
+		clickedMousePosX = mouseCoordx;
+		clickedMousePosY = mouseCoordy;
+		return std::make_pair(currCenterX, currCenterY);
+	} else if (lastMousePressedState && mouseLeftPressed) {
+		float mouseTranslationX = (mouseCoordx - clickedMousePosX) / 640 * xWidth;
+		float mouseTranslationY = (mouseCoordy - clickedMousePosY) / 480 * yWidth;
+		return std::make_pair(lastCenterX - mouseTranslationX, lastCenterY - mouseTranslationY);
+	}
+	return std::make_pair(currCenterX, currCenterY);
+}
+
 int main(void) {
 	// create a window with the specified width, height and title and initialize OpenGL
 	unsigned int width = 640;
@@ -429,12 +459,24 @@ int main(void) {
 	GLuint textureId = createTexture(width, height, pixels);
 	GLuint vao = createBuffers();
 
+	float currCenterX = -0.75f;
+	float currCenterY = 0.0f;
+	float xWidth = 2.5f;
+	float yWidth = 2.5f;
+	bool currMousePressedState = false;
+
 	// loop until the user presses ESC or the window is closed programatically
 	while (!glfwWindowShouldClose(window)) {
 		// clear the back buffer with the specified color and the depth buffer with 1
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		updateMandel(pixels, width, height);
+		std::pair<float, float> center = getCenter(currMousePressedState, currCenterX, currCenterY, xWidth, yWidth);
+		currCenterX = center.first;
+		currCenterY = center.second;
+		currMousePressedState = mouseLeftPressed;
+		xWidth = 2.5f / zoom;
+		yWidth = 2.5f / zoom;
+		updateMandel(pixels, center.first, center.second, xWidth, yWidth, width, height, 60);
 		// render to back buffer
 		render(shaderProgram, vao, textureId);
 
