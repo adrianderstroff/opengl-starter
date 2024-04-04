@@ -33,3 +33,6 @@
 
 # Build folder
 build/
+
+# Install folder
+install

@@ -5,22 +5,27 @@
 #include <streambuf>
 #include <string>
 
-#include <glad/glad.h>
+#include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <GLM/glm.hpp>
 
 //________________________________________________CALLBACK_FUNCTIONS_________________________________________________//
 
 static void errorCallback(int error, const char* description) {
-    fputs(description, stderr);
+	std::cerr << description;
 }
+
 static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    // close window when ESC has been pressed
+	// close window when ESC has been pressed
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, GL_TRUE);
+		glfwSetWindowShouldClose(window, GL_TRUE);
 }
+
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {}
+
 static void mousePositionCallback(GLFWwindow* window, double xpos, double ypos) {}
+
+void framebufferSizeCallback(GLFWwindow* window, int w, int h) { glViewport(0, 0, w, h); }
 
 //_________________________________________________INITIALIZATION____________________________________________________//
 
@@ -32,9 +37,9 @@ GLFWwindow* initialize(int width, int height, std::string title) {
 	if (!glfwInit())
 		exit(EXIT_FAILURE);
 
-	// we want to use the opengl 3.3 core profile
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	// we want to use the opengl 4.6 core profile
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
@@ -43,28 +48,29 @@ GLFWwindow* initialize(int width, int height, std::string title) {
 
 	// make sure the window creation was successful
 	if (!window) {
-		fprintf(stderr, "Failed to open GLFW window.\n");
+		std::cerr << "Failed to open GLFW window.\n";
 		glfwTerminate();
 		exit(EXIT_FAILURE);
 	}
 	glfwMakeContextCurrent(window);
 
 	// initialize glad for loading all OpenGL functions
-	if (!gladLoadGL()) {
-		printf("Something went wrong!\n");
-		exit(-1);
+	if (!gladLoadGL((GLADloadfunc)glfwGetProcAddress)) {
+		std::cerr << "Something went wrong!\n";
+		exit(EXIT_FAILURE);
 	}
 
 	// print some information about the supported OpenGL version
 	const GLubyte* renderer = glGetString(GL_RENDERER);
 	const GLubyte* version = glGetString(GL_VERSION);
-	fprintf(stdout, "Renderer: %s\n", renderer);
-	fprintf(stdout, "OpenGL version supported %s\n", version);
+	std::cout << "Renderer: " << renderer << '\n';
+	std::cout << "OpenGL version supported " << version << '\n';
 
 	// register user callbacks
 	glfwSetKeyCallback(window, keyCallback);
 	glfwSetMouseButtonCallback(window, mouseButtonCallback);
 	glfwSetCursorPosCallback(window, mousePositionCallback);
+	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
 	// set the clear color of the window
 	glClearColor(0.3f, 0.3f, 0.3f, 0.0f);
@@ -132,6 +138,7 @@ GLuint compileShader(std::string path, GLenum shaderType) {
 	// return the shader handle
 	return shaderHandle;
 }
+
 GLuint createShaderProgram(std::string vertexShaderPath, std::string fragmentShaderPath) {
 	// create and compile shaders
 	GLenum vertexShader = compileShader(vertexShaderPath, GL_VERTEX_SHADER);
@@ -182,30 +189,30 @@ void cleanup(GLFWwindow* window, GLuint& shaderProgram, GLuint& vao) {
 
 //_______________________________________________________MAIN________________________________________________________//
 
-int main(void) {	
-	// create a window with the specified width, height and title and initialize OpenGL 
+int main(void) {
+	// create a window with the specified width, height and title and initialize OpenGL
 	GLFWwindow* window = initialize(640, 480, "OpenGL Starter Project");
 	GLuint shaderProgram = createShaderProgram(
-		ASSETS_PATH"/shaders/test.vert.glsl", 
+		ASSETS_PATH"/shaders/test.vert.glsl",
 		ASSETS_PATH"/shaders/test.frag.glsl");
 	GLuint vao = createBuffers();
 
 	// loop until the user presses ESC or the window is closed programatically
-    while (!glfwWindowShouldClose(window)) {
+	while (!glfwWindowShouldClose(window)) {
 		// clear the back buffer with the specified color and the depth buffer with 1
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 		// render to back buffer
 		render(shaderProgram, vao);
 
 		// switch front and back buffers
 		glfwSwapBuffers(window);
-        glfwPollEvents();
-    }
+		glfwPollEvents();
+	}
 
 	// clean up all created objects
 	cleanup(window, shaderProgram, vao);
 
 	// program exits properly
-    exit(EXIT_SUCCESS);
+	exit(EXIT_SUCCESS);
 }
