@@ -39,3 +39,7 @@ install
 
 # CMake
 *.user
+
+# CLion
+.idea
+cmake-*
