@@ -1,4 +1,12 @@
 #-----------------------------------------------------------------------------#
+# define the asset path in c++
+set(ASSETS_DIR ${PROJECT_SOURCE_DIR}/assets)
+set(ASSETS_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/assets)
+file(COPY ${ASSETS_DIR} DESTINATION ${CMAKE_INSTALL_PREFIX})
+# Additionally, install assets for QtCreator and CLion IDE.
+file(COPY ${ASSETS_DIR} DESTINATION ${CMAKE_BINARY_DIR})
+
+#-----------------------------------------------------------------------------#
 # list of all source files
 set(SRC_DIR ${PROJECT_SOURCE_DIR}/src)
 file(GLOB_RECURSE HEADER_FILES CONFIGURE_DEPENDS "${SRC_DIR}/*.h")
