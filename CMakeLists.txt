@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
 # specify name of the project and specify which language to compile for
-project(opengl-starter LANGUAGES CXX)
+project(opengl-starter LANGUAGES CXX C)
 
 # If you do not set the CMAKE_INSTALL_PREFIX variable, the default path on Windows will point to "Program Files",
 # where you cannot copy files without administrator rights.

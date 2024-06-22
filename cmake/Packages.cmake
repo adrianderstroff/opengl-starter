@@ -42,6 +42,8 @@ CPMAddPackage(
 find_targets(glm_targets ${glm_SOURCE_DIR})
 make_folder("glm" ${glm_targets})
 
+# To fix build errors in Qt Creator for the latest versions of CMake.
+set(CMP0169 OLD)
 # Source file grouping of visual studio and xcode
 CPMAddPackage(
   NAME GroupSourcesByFolder.cmake
