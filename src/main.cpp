@@ -1,13 +1,11 @@
 #include <fstream>
 #include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
+#include <cstdlib>
 #include <string>
 
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
-#include <GLM/glm.hpp>
+#include <glm/glm.hpp>
 
 //________________________________________________CALLBACK_FUNCTIONS_________________________________________________//
 
@@ -21,15 +19,15 @@ static void keyCallback(GLFWwindow* window, int key, int scancode, int action, i
 		glfwSetWindowShouldClose(window, GL_TRUE);
 }
 
-void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {}
+static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {}
 
 static void mousePositionCallback(GLFWwindow* window, double xpos, double ypos) {}
 
-void framebufferSizeCallback(GLFWwindow* window, int w, int h) { glViewport(0, 0, w, h); }
+static void framebufferSizeCallback(GLFWwindow* window, int w, int h) { glViewport(0, 0, w, h); }
 
 //_________________________________________________INITIALIZATION____________________________________________________//
 
-GLFWwindow* initialize(int width, int height, std::string title) {
+GLFWwindow* initialize(int width, int height, const std::string& title) {
 	GLFWwindow* window;
 	glfwSetErrorCallback(errorCallback);
 
@@ -44,7 +42,7 @@ GLFWwindow* initialize(int width, int height, std::string title) {
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	// actually create the window
-	window = glfwCreateWindow(width, height, title.c_str(), NULL, NULL);
+	window = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
 
 	// make sure the window creation was successful
 	if (!window) {
@@ -114,7 +112,7 @@ GLuint createBuffers() {
 	return vao;
 }
 
-GLuint compileShader(std::string path, GLenum shaderType) {
+GLuint compileShader(const std::string& path, GLenum shaderType) {
 	// grab the contents of the file and store the source code in a string
 	std::ifstream filestream(path);
 	std::string shaderSource((std::istreambuf_iterator<char>(filestream)),
@@ -123,7 +121,7 @@ GLuint compileShader(std::string path, GLenum shaderType) {
 	// create and compile the shader
 	GLuint shaderHandle = glCreateShader(shaderType);
 	const char* shaderSourcePtr = shaderSource.c_str();
-	glShaderSource(shaderHandle, 1, &shaderSourcePtr, NULL);
+	glShaderSource(shaderHandle, 1, &shaderSourcePtr, nullptr);
 	glCompileShader(shaderHandle);
 
 	// check if compilation was successful
@@ -131,7 +129,7 @@ GLuint compileShader(std::string path, GLenum shaderType) {
 	char infoLog[512];
 	glGetShaderiv(shaderHandle, GL_COMPILE_STATUS, &success);
 	if (!success) {
-		glGetShaderInfoLog(shaderHandle, 512, NULL, infoLog);
+		glGetShaderInfoLog(shaderHandle, 512, nullptr, infoLog);
 		std::cerr << "Error while compiling shader\n" << infoLog << std::endl;
 	}
 
@@ -139,7 +137,7 @@ GLuint compileShader(std::string path, GLenum shaderType) {
 	return shaderHandle;
 }
 
-GLuint createShaderProgram(std::string vertexShaderPath, std::string fragmentShaderPath) {
+GLuint createShaderProgram(const std::string& vertexShaderPath, const std::string& fragmentShaderPath) {
 	// create and compile shaders
 	GLenum vertexShader = compileShader(vertexShaderPath, GL_VERTEX_SHADER);
 	GLenum fragmentShader = compileShader(fragmentShaderPath, GL_FRAGMENT_SHADER);
@@ -155,7 +153,7 @@ GLuint createShaderProgram(std::string vertexShaderPath, std::string fragmentSha
 	char infoLog[512];
 	glGetShaderiv(shaderProgram, GL_COMPILE_STATUS, &success);
 	if (!success) {
-		glGetShaderInfoLog(shaderProgram, 512, NULL, infoLog);
+		glGetShaderInfoLog(shaderProgram, 512, nullptr, infoLog);
 		std::cerr << "Error while linking shaders\n" << infoLog << std::endl;
 	}
 
@@ -189,7 +187,7 @@ void cleanup(GLFWwindow* window, GLuint& shaderProgram, GLuint& vao) {
 
 //_______________________________________________________MAIN________________________________________________________//
 
-int main(void) {
+int main() {
 	// create a window with the specified width, height and title and initialize OpenGL
 	GLFWwindow* window = initialize(640, 480, "OpenGL Starter Project");
 	GLuint shaderProgram = createShaderProgram(
@@ -197,7 +195,7 @@ int main(void) {
 		ASSETS_PATH"/shaders/test.frag.glsl");
 	GLuint vao = createBuffers();
 
-	// loop until the user presses ESC or the window is closed programatically
+	// loop until the user presses ESC or the window is closed programmatically
 	while (!glfwWindowShouldClose(window)) {
 		// clear the back buffer with the specified color and the depth buffer with 1
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
