@@ -1,68 +1,25 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
 # specify name of the project and specify which language to compile for
-project(opengl-starter LANGUAGES CXX)
+project(opengl-starter LANGUAGES CXX C)
 
-#-----------------------------------------------------------------------------#
-# define the asset path in c++
-set(ASSETS_DIR ${PROJECT_SOURCE_DIR}/assets)
-add_compile_definitions(ASSETS_PATH="${ASSETS_DIR}")
+# If you do not set the CMAKE_INSTALL_PREFIX variable, the default path on Windows will point to "Program Files",
+# where you cannot copy files without administrator rights.
+# For easier out-of-the-box use, this variable is set manually.
+set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/install)
 
-#-----------------------------------------------------------------------------#
-# list of all source files
-set(SRC_DIR ${PROJECT_SOURCE_DIR}/src)
-file(GLOB_RECURSE HEADER_FILES CONFIGURE_DEPENDS "${SRC_DIR}/*.h")
-file(GLOB_RECURSE SOURCE_FILES CONFIGURE_DEPENDS "${SRC_DIR}/*.cpp")
-file(GLOB_RECURSE SHADER_FILES CONFIGURE_DEPENDS "${ASSETS_DIR}/shaders/*.glsl")
+# Put all compiled targets into one folder for easier use in the CLion IDE.
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-#-----------------------------------------------------------------------------#
-# add dependencies via CPM
-include(cmake/CPM.cmake)
+set(CMAKE_MODULE_PATH
+  ${CMAKE_MODULE_PATH}
+  ${CMAKE_SOURCE_DIR}/cmake)
 
-# GLAD
-CPMAddPackage(
-  NAME glad
-  GITHUB_REPOSITORY Dav1dde/glad
-  VERSION 0.1.33
-)
+include(CPM)
+include(FindTargets)
+include(MakeFolder)
+include(Packages)
 
-# GLM
-CPMAddPackage(
-  NAME glm
-  GITHUB_REPOSITORY g-truc/glm
-  GIT_TAG 0.9.9.7
-)
-
-# GLFW
-CPMAddPackage(
-  NAME glfw
-  GITHUB_REPOSITORY glfw/glfw
-  GIT_TAG 3.3.2
-  OPTIONS
-	"GLFW_BUILD_TESTS Off"
-	"GLFW_BUILD_EXAMPLES Off"
-	"GLFW_BUILD_DOCS Off"
-    "GLFW_INSTALL Off"
-    "GLFW_USE_HYBRID_HPG On"
-)
-
-# put all external targets into a seperate folder to not pollute the project folder
-set_target_properties(glad glad-generate-files glfw PROPERTIES FOLDER ExternalTargets)
-
-# Source file grouping of visual studio and xcode
-CPMAddPackage(
-  NAME GroupSourcesByFolder.cmake
-  GITHUB_REPOSITORY TheLartians/GroupSourcesByFolder.cmake
-  VERSION 1.0
-)
-
-#-----------------------------------------------------------------------------#
-# list all files that will either be used for compilation or that should show 
-# up in the ide of your choice
-add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${HEADER_FILES} ${SHADER_FILES})
-GroupSourcesByFolder(${PROJECT_NAME})
-target_include_directories(${PROJECT_NAME} PUBLIC src)
-set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 11) # use c++11
-
-# specify libraries to link with after compilation
-target_link_libraries(${PROJECT_NAME} PRIVATE glad glfw glm)
+add_subdirectory(src)

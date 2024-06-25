@@ -33,3 +33,13 @@
 
 # Build folder
 build/
+
+# Install folder
+install
+
+# CMake
+*.user
+
+# CLion
+.idea
+cmake-*

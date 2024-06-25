@@ -6,4 +6,4 @@ in vec3 oColor;
 
 void main() {
     outColor = oColor;
-} 
+}
